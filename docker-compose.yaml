@@ -16,7 +16,8 @@ services:
   airflow-webserver:
     build: .
     depends_on:
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully  # Critical fix
     environment:
       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
       - AIRFLOW__CORE__FERNET_KEY=PAqBeGJLJTYFzVkOGHWIYXdLO7XdXz5yTdxAGJe9ezM=
@@ -28,11 +29,17 @@ services:
     ports:
       - "8080:8080"
     command: webserver
+    healthcheck:  # Recommended addition
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
 
   airflow-scheduler:
     build: .
     depends_on:
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully  # Critical fix
     environment:
       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
       - AIRFLOW__CORE__FERNET_KEY=PAqBeGJLJTYFzVkOGHWIYXdLO7XdXz5yTdxAGJe9ezM=
