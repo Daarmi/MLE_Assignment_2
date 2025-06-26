@@ -16,7 +16,8 @@ from pyspark.sql.types import StringType, IntegerType, FloatType, DateType
 
 
 def process_labels_gold_table(snapshot_date_str, silver_lms_directory, gold_label_store_directory, spark, dpd, mob):
-    
+    # Create directory if needed
+    os.makedirs(gold_label_store_directory, exist_ok=True)
     # prepare arguments
     snapshot_date = datetime.strptime(snapshot_date_str, "%Y-%m-%d")
     

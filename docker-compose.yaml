@@ -49,6 +49,13 @@ services:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
     command: scheduler
+  
+  airflow-worker:
+    volumes:
+      - ./datamart:/opt/airflow/datamart
+    environment:
+      - AIRFLOW_UID=50000  # Match your host user ID
+    user: "${AIRFLOW_UID:-50000}:0"  # Run as root group
 
 volumes:
   airflow_data:

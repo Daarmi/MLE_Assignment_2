@@ -17,6 +17,8 @@ from pyspark.sql.types import StringType, IntegerType, FloatType, DateType, Bool
 
 
 def process_silver_loan_table(snapshot_date_str, bronze_lms_directory, silver_lms_directory, spark):
+    # Create directory if needed
+    os.makedirs(silver_lms_directory, exist_ok=True)
     # prepare arguments
     snapshot_date = datetime.strptime(snapshot_date_str, "%Y-%m-%d")
     

@@ -31,6 +31,7 @@ from sklearn.metrics import roc_auc_score
 
 # --- 2. CONFIGURATION ---
 def parse_args():
+
     """Parse command line arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--execution-date", required=True, help="Airflow execution date (YYYY-MM-DD)")
@@ -41,6 +42,26 @@ def parse_args():
 
 # --- 3. DATA LOADING ---
 def load_training_data(feature_dir, label_dir, max_date):
+    """Load and merge features/labels with date validation"""
+    # Verify data exists for all required dates
+    required_dates = [max_date - relativedelta(months=i) for i in range(1, 8)]
+    date_strs = [d.strftime("%Y_%m_%d") for d in required_dates]
+    
+    # Check feature store files
+    missing_files = []
+    for date_str in date_strs:
+        eng_path = f"{feature_dir}/eng/gold_ft_store_engagement_{date_str}.parquet"
+        fin_path = f"{feature_dir}/cust_fin_risk/gold_ft_store_cust_fin_risk_{date_str}.parquet"
+        label_path = f"{label_dir}/gold_label_store_{date_str}.parquet"
+        
+        if not os.path.exists(eng_path): missing_files.append(eng_path)
+        if not os.path.exists(fin_path): missing_files.append(fin_path)
+        if not os.path.exists(label_path): missing_files.append(label_path)
+    
+    if missing_files:
+        raise FileNotFoundError(f"Missing {len(missing_files)} required data files. "
+                                f"First 3 missing: {missing_files[:3]}")
+                                
     """Load and merge features/labels with date validation"""
     # Verify data exists for all required dates
     required_dates = [max_date - relativedelta(months=i) for i in range(1, 8)]

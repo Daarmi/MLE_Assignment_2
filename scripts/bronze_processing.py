@@ -10,12 +10,15 @@ def main(snapshot_date):
         .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
 
-    # Define directories
+    # Define a safe base directory
+    AIRFLOW_HOME = os.getenv("AIRFLOW_HOME", "/opt/airflow")
+    BRONZE_DIR = os.path.join(AIRFLOW_HOME, "datamart", "bronze")
+
     directories = {
-        "loan": "datamart/bronze/lms/",
-        "clickstream": "datamart/bronze/clks/",
-        "attributes": "datamart/bronze/attr/",
-        "financials": "datamart/bronze/fin/"
+        "loan": os.path.join(BRONZE_DIR, "lms"),
+        "clickstream": os.path.join(BRONZE_DIR, "clks"),
+        "attributes": os.path.join(BRONZE_DIR, "attr"),
+        "financials": os.path.join(BRONZE_DIR, "fin")
     }
 
     # Process each bronze table
