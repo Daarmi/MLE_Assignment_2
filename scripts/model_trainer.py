@@ -11,16 +11,18 @@ Steps:
 """
 
 # --- 1. IMPORT LIBRARIES ---
-# Main goal: Load required dependencies
 import os
+import sys
 import joblib
+import argparse
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -28,52 +30,65 @@ from xgboost import XGBClassifier
 from sklearn.metrics import roc_auc_score
 
 # --- 2. CONFIGURATION ---
-# Main goal: Set up paths and parameters
-# Add these paths to your directory structure
-FEATURE_DIR = "datamart/gold/feature_store"
-LABEL_DIR = "datamart/gold/label_store"
-MODEL_BANK = "model_bank"
-os.makedirs(MODEL_BANK, exist_ok=True)
-
-# Time-based split parameters
-TRAIN_START = "2023-01-01"
-TRAIN_END = "2023-12-31"
-VAL_START = "2024-01-01"
-VAL_END = "2024-06-30"
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--execution-date", required=True, help="Airflow execution date (YYYY-MM-DD)")
+    parser.add_argument("--feature-dir", default="datamart/gold/feature_store", help="Base directory for features")
+    parser.add_argument("--label-dir", default="datamart/gold/label_store", help="Base directory for labels")
+    parser.add_argument("--model-bank", default="model_bank", help="Directory to save trained models")
+    return parser.parse_args()
 
 # --- 3. DATA LOADING ---
-# Main goal: Load and merge features/labels from gold layer
-def load_training_data():
-    """Load and merge engagement, financial risk, and label data"""
-    # Load engagement features
-    eng_files = [f"{FEATURE_DIR}/eng/{f}" for f in os.listdir(f"{FEATURE_DIR}/eng") 
-                 if f.endswith(".parquet")]
+def load_training_data(feature_dir, label_dir, max_date):
+    """Load and merge features/labels with date validation"""
+    # Verify data exists for all required dates
+    required_dates = [max_date - relativedelta(months=i) for i in range(1, 8)]
+    date_strs = [d.strftime("%Y_%m_%d") for d in required_dates]
+    
+    # Check feature store files
+    for date_str in date_strs:
+        eng_path = f"{feature_dir}/eng/gold_ft_store_engagement_{date_str}.parquet"
+        fin_path = f"{feature_dir}/cust_fin_risk/gold_ft_store_cust_fin_risk_{date_str}.parquet"
+        label_path = f"{label_dir}/gold_label_store_{date_str}.parquet"
+        
+        if not all(os.path.exists(p) for p in [eng_path, fin_path, label_path]):
+            missing = [p for p in [eng_path, fin_path, label_path] if not os.path.exists(p)]
+            raise FileNotFoundError(f"Missing data files: {missing}")
+
+    # Load data using Spark would be better, but we'll use pandas for simplicity
+    # For large datasets, consider PySpark implementation
+    eng_files = [f"{feature_dir}/eng/{f}" for f in os.listdir(f"{feature_dir}/eng") 
+                 if f.startswith("gold_ft_store_engagement") and f.endswith(".parquet")]
+    fin_files = [f"{feature_dir}/cust_fin_risk/{f}" for f in os.listdir(f"{feature_dir}/cust_fin_risk") 
+                 if f.startswith("gold_ft_store_cust_fin_risk") and f.endswith(".parquet")]
+    label_files = [f"{label_dir}/{f}" for f in os.listdir(label_dir) 
+                   if f.startswith("gold_label_store") and f.endswith(".parquet")]
+    
+    # Load and merge datasets
     eng_df = pd.concat([pd.read_parquet(f) for f in eng_files])
-    
-    # Load financial risk features
-    fin_files = [f"{FEATURE_DIR}/cust_fin_risk/{f}" for f in os.listdir(f"{FEATURE_DIR}/cust_fin_risk") 
-                 if f.endswith(".parquet")]
     fin_df = pd.concat([pd.read_parquet(f) for f in fin_files])
-    
-    # Load labels
-    label_files = [f"{LABEL_DIR}/{f}" for f in os.listdir(LABEL_DIR) 
-                   if f.endswith(".parquet")]
     label_df = pd.concat([pd.read_parquet(f) for f in label_files])
     
-    # Merge datasets
     features_df = pd.merge(eng_df, fin_df, on=["Customer_ID", "snapshot_date"])
     full_df = pd.merge(features_df, label_df, on=["Customer_ID", "snapshot_date"])
     
     return full_df
 
 # --- 4. TIME-BASED SPLIT ---
-# Main goal: Prevent temporal leakage using chronological split
-def time_based_split(df):
+def time_based_split(df, execution_date):
     """Split data into training and validation sets by time"""
-    train_df = df[(df["snapshot_date"] >= TRAIN_START) & 
-                 (df["snapshot_date"] <= TRAIN_END)]
-    val_df = df[(df["snapshot_date"] >= VAL_START) & 
-               (df["snapshot_date"] <= VAL_END)]
+    # Convert to datetime if needed
+    if not isinstance(df['snapshot_date'].dtype, pd.DatetimeTZDtype):
+        df['snapshot_date'] = pd.to_datetime(df['snapshot_date'])
+    
+    # Calculate split points (using 70/30 time-based split)
+    max_date = execution_date
+    train_end = max_date - relativedelta(months=3)
+    val_start = train_end + relativedelta(days=1)
+    
+    train_df = df[df["snapshot_date"] <= train_end]
+    val_df = df[df["snapshot_date"] >= val_start]
     
     # Prepare features and labels
     X_train = train_df.drop(columns=["label", "label_def", "snapshot_date"])
@@ -84,7 +99,6 @@ def time_based_split(df):
     return X_train, X_val, y_train, y_val
 
 # --- 5. PREPROCESSING PIPELINE ---
-# Main goal: Handle missing values and scale features
 def build_preprocessor():
     """Create preprocessing pipeline for different feature types"""
     # Identify feature types
@@ -111,21 +125,32 @@ def build_preprocessor():
     return preprocessor
 
 # --- 6. MODEL TRAINING ---
-# Main goal: Train multiple models with default hyperparameters
 def train_models(X_train, y_train, preprocessor):
     """Train and return multiple classifier models"""
     models = {
         "RandomForest": Pipeline(steps=[
             ('preprocessor', preprocessor),
-            ('classifier', RandomForestClassifier(random_state=42))
+            ('classifier', RandomForestClassifier(
+                n_estimators=100, 
+                random_state=42,
+                class_weight='balanced'
+            ))
         ]),
         "XGBoost": Pipeline(steps=[
             ('preprocessor', preprocessor),
-            ('classifier', XGBClassifier(random_state=42, eval_metric='logloss'))
+            ('classifier', XGBClassifier(
+                random_state=42, 
+                eval_metric='auc',
+                scale_pos_weight=np.sum(y_train == 0) / np.sum(y_train == 1)
+            )
         ]),
         "LogisticRegression": Pipeline(steps=[
             ('preprocessor', preprocessor),
-            ('classifier', LogisticRegression(random_state=42, max_iter=1000))
+            ('classifier', LogisticRegression(
+                random_state=42, 
+                max_iter=1000,
+                class_weight='balanced'
+            ))
         ])
     }
     
@@ -137,11 +162,11 @@ def train_models(X_train, y_train, preprocessor):
     return models
 
 # --- 7. MODEL EVALUATION ---
-# Main goal: Select best model based on validation AUC
 def evaluate_models(models, X_val, y_val):
     """Evaluate models and return best performer"""
     best_model = None
     best_score = 0
+    best_model_name = ""
     
     for name, model in models.items():
         y_pred = model.predict_proba(X_val)[:, 1]
@@ -157,11 +182,11 @@ def evaluate_models(models, X_val, y_val):
     return best_model, best_model_name
 
 # --- 8. SAVE MODEL ---
-# Main goal: Persist best model to model_bank
-def save_model(model, model_name):
-    """Save model as .pkl file with timestamp"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{MODEL_BANK}/{model_name}_{timestamp}.pkl"
+def save_model(model, model_name, execution_date):
+    """Save model with execution date in filename"""
+    os.makedirs(MODEL_BANK, exist_ok=True)
+    date_str = execution_date.strftime("%Y%m%d")
+    filename = f"{MODEL_BANK}/{model_name}_{date_str}.pkl"
     joblib.dump(model, filename)
     print(f"Saved model to {filename}")
     return filename
@@ -170,13 +195,30 @@ def save_model(model, model_name):
 if __name__ == "__main__":
     print("Starting model training pipeline...")
     
-    # Step 1: Load data
-    df = load_training_data()
-    print(f"Loaded training data with shape: {df.shape}")
+    # Parse arguments
+    args = parse_args()
+    execution_date = datetime.strptime(args.execution_date, "%Y-%m-%d")
+    FEATURE_DIR = args.feature_dir
+    LABEL_DIR = args.label_dir
+    MODEL_BANK = args.model_bank
+    
+    print(f"Execution date: {execution_date.strftime('%Y-%m-%d')}")
+    print(f"Feature directory: {FEATURE_DIR}")
+    print(f"Label directory: {LABEL_DIR}")
+    print(f"Model bank: {MODEL_BANK}")
+    
+    # Step 1: Load data with date validation
+    try:
+        df = load_training_data(FEATURE_DIR, LABEL_DIR, execution_date)
+        print(f"Loaded training data with shape: {df.shape}")
+    except Exception as e:
+        print(f"Data loading failed: {str(e)}")
+        sys.exit(1)
     
     # Step 2: Time-based split
-    X_train, X_val, y_train, y_val = time_based_split(df)
-    print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
+    X_train, X_val, y_train, y_val = time_based_split(df, execution_date)
+    print(f"Train size: {len(X_train)} ({X_train['snapshot_date'].min()} to {X_train['snapshot_date'].max()})")
+    print(f"Validation size: {len(X_val)} ({X_val['snapshot_date'].min()} to {X_val['snapshot_date'].max()})")
     
     # Step 3: Build preprocessor
     preprocessor = build_preprocessor()
@@ -188,6 +230,6 @@ if __name__ == "__main__":
     best_model, best_model_name = evaluate_models(models, X_val, y_val)
     
     # Step 6: Save best model
-    model_path = save_model(best_model, best_model_name)
+    model_path = save_model(best_model, best_model_name, execution_date)
     
     print("Training pipeline completed successfully!")
