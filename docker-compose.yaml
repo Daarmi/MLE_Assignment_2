@@ -9,6 +9,7 @@ services:
       - airflow_data:/opt/airflow
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./model_bank:/opt/airflow/model_bank
     entrypoint: >
       /bin/bash -c "airflow db init &&
       airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true"
@@ -26,6 +27,7 @@ services:
       - airflow_data:/opt/airflow
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./model_bank:/opt/airflow/model_bank
     ports:
       - "8080:8080"
     command: webserver
@@ -48,14 +50,8 @@ services:
       - airflow_data:/opt/airflow
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./model_bank:/opt/airflow/model_bank
     command: scheduler
-  
-  airflow-worker:
-    volumes:
-      - ./datamart:/opt/airflow/datamart
-    environment:
-      - AIRFLOW_UID=50000  # Match your host user ID
-    user: "${AIRFLOW_UID:-50000}:0"  # Run as root group
 
 volumes:
   airflow_data:
