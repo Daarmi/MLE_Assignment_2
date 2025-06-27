@@ -24,7 +24,7 @@ def process_silver_loan_table(snapshot_date_str, bronze_lms_directory, silver_lm
     
     # connect to bronze table
     partition_name = "bronze_loan_daily_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_lms_directory + partition_name
+    filepath = os.path.join(bronze_lms_directory, partition_name)
     df = spark.read.csv(filepath, header=True, inferSchema=True)
     print('loaded from:', filepath, 'row count:', df.count())
 
@@ -57,7 +57,7 @@ def process_silver_loan_table(snapshot_date_str, bronze_lms_directory, silver_lm
 
     # save silver table - IRL connect to database to write
     partition_name = "silver_loan_daily_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = silver_lms_directory + partition_name
+    filepath = os.path.join(silver_lms_directory, partition_name)
     df.write.mode("overwrite").parquet(filepath)
     # df.toPandas().to_parquet(filepath,
     #           compression='gzip')
@@ -71,7 +71,7 @@ def process_silver_clickstream_table(snapshot_date_str, bronze_clks_directory, s
     
     # connect to bronze table
     partition_name = "bronze_clks_mthly_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_clks_directory + partition_name
+    filepath = os.path.join(bronze_clks_directory, partition_name)
     df = spark.read.csv(filepath, header=True, inferSchema=True)
     print('loaded from:', filepath, 'row count:', df.count())
     
@@ -111,7 +111,7 @@ def process_silver_clickstream_table(snapshot_date_str, bronze_clks_directory, s
     
     # save silver table - IRL connect to database to write
     partition_name = "silver_clks_mthly_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = silver_clks_directory + partition_name
+    filepath = os.path.join(silver_clks_directory, partition_name)
     df.write.mode("overwrite").parquet(filepath)
     # df.toPandas().to_parquet(filepath,
     #           compression='gzip')
@@ -125,7 +125,7 @@ def process_silver_attributes_table(snapshot_date_str, bronze_attr_directory, si
     
     # connect to bronze table
     partition_name = "bronze_attr_mthly_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_attr_directory + partition_name
+    filepath = os.path.join(bronze_attr_directory, partition_name)
     df = spark.read.csv(filepath, header=True, inferSchema=True)
     print('loaded from:', filepath, 'row count:', df.count())
 
@@ -157,7 +157,7 @@ def process_silver_attributes_table(snapshot_date_str, bronze_attr_directory, si
 
     # save silver table - IRL connect to database to write
     partition_name = "silver_attr_mthly_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = silver_attr_directory + partition_name
+    filepath = os.path.join(silver_attr_directory, partition_name)
     df.write.mode("overwrite").parquet(filepath)
     # df.toPandas().to_parquet(filepath,
     #           compression='gzip')
@@ -171,7 +171,7 @@ def process_silver_financials_table(snapshot_date_str, bronze_fin_directory, sil
     
     # connect to bronze table
     partition_name = "bronze_fin_mthly_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_fin_directory + partition_name
+    filepath = os.path.join(bronze_fin_directory, partition_name)
     df = spark.read.csv(filepath, header=True, inferSchema=True)
     print('loaded from:', filepath, 'row count:', df.count())
 
@@ -273,7 +273,7 @@ def process_silver_financials_table(snapshot_date_str, bronze_fin_directory, sil
     
     # save silver table - IRL connect to database to write
     partition_name = "silver_fin_mthly_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = silver_fin_directory + partition_name
+    filepath = os.path.join(silver_fin_directory, partition_name)
     df.write.mode("overwrite").parquet(filepath)
     # df.toPandas().to_parquet(filepath,
     #           compression='gzip')

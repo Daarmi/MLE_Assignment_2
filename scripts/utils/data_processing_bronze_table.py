@@ -30,7 +30,7 @@ def process_bronze_loan_table(snapshot_date_str, bronze_lms_directory, spark):
 
     # save bronze table to datamart - IRL connect to database to write
     partition_name = "bronze_loan_daily_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_lms_directory + partition_name
+    filepath = os.path.join(bronze_lms_directory, partition_name)
     df.toPandas().to_csv(filepath, index=False)
     print('saved to:', filepath)
 
@@ -49,7 +49,7 @@ def process_bronze_clickstream_table(snapshot_date_str, bronze_clks_directory, s
 
     # save bronze table to datamart - IRL connect to database to write
     partition_name = "bronze_clks_mthly_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_clks_directory + partition_name
+    filepath = os.path.join(bronze_clks_directory, partition_name)
     df.toPandas().to_csv(filepath, index=False)
     print('saved to:', filepath)
 
@@ -68,7 +68,7 @@ def process_bronze_attributes_table(snapshot_date_str, bronze_attr_directory, sp
 
     # save bronze table to datamart - IRL connect to database to write
     partition_name = "bronze_attr_mthly_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_attr_directory + partition_name
+    filepath = os.path.join(bronze_attr_directory, partition_name)
     df.toPandas().to_csv(filepath, index=False)
     print('saved to:', filepath)
 
@@ -87,7 +87,7 @@ def process_bronze_financials_table(snapshot_date_str, bronze_fin_directory, spa
 
     # save bronze table to datamart - IRL connect to database to write
     partition_name = "bronze_fin_mthly_" + snapshot_date_str.replace('-','_') + '.csv'
-    filepath = bronze_fin_directory + partition_name
+    filepath = os.path.join(bronze_fin_directory, partition_name)
     df.toPandas().to_csv(filepath, index=False)
     print('saved to:', filepath)
 

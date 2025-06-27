@@ -23,7 +23,7 @@ def process_labels_gold_table(snapshot_date_str, silver_lms_directory, gold_labe
     
     # connect to bronze table
     partition_name = "silver_loan_daily_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = silver_lms_directory + partition_name
+    filepath = os.path.join(silver_lms_directory, partition_name)
     df = spark.read.parquet(filepath)
     print('loaded from:', filepath, 'row count:', df.count())
 
@@ -39,7 +39,7 @@ def process_labels_gold_table(snapshot_date_str, silver_lms_directory, gold_labe
 
     # save gold table - IRL connect to database to write
     partition_name = "gold_label_store_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = gold_label_store_directory + partition_name
+    filepath = os.path.join(gold_label_store_directory, partition_name)
     df.write.mode("overwrite").parquet(filepath)
     # df.toPandas().to_parquet(filepath,
     #           compression='gzip')
@@ -56,7 +56,7 @@ def process_fts_gold_engag_table(snapshot_date_str, silver_clks_directory, gold_
     for i in range(1, 7):  # from 1 to 6 months ago
         month_date = snapshot_date - relativedelta(months=i)
         partition_name = "silver_clks_mthly_" + month_date.strftime('%Y_%m_%d') + '.parquet'
-        filepath = silver_clks_directory + partition_name
+        filepath = os.path.join(silver_clks_directory, partition_name)
 
         try:
             df = spark.read.parquet(filepath)
@@ -101,7 +101,7 @@ def process_fts_gold_engag_table(snapshot_date_str, silver_clks_directory, gold_
 
     # Save to gold directory
     partition_name = "gold_ft_store_engagement_" + snapshot_date_str.replace('-', '_') + '.parquet'
-    filepath = gold_clks_directory + partition_name
+    filepath = os.path.join(gold_clks_directory, partition_name)
     df_final.write.mode("overwrite").parquet(filepath)
     print('Saved to:', filepath)
 
@@ -114,7 +114,7 @@ def process_fts_gold_cust_risk_table(snapshot_date_str, silver_fin_directory, go
     
     # connect to silver table
     partition_name = "silver_fin_mthly_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = silver_fin_directory + partition_name
+    filepath = os.path.join(silver_fin_directory, partition_name)
     df = spark.read.parquet(filepath)
     print('loaded from:', filepath, 'row count:', df.count())
 
@@ -125,7 +125,7 @@ def process_fts_gold_cust_risk_table(snapshot_date_str, silver_fin_directory, go
 
     # save gold table - IRL connect to database to write
     partition_name = "gold_ft_store_cust_fin_risk_" + snapshot_date_str.replace('-','_') + '.parquet'
-    filepath = gold_fin_directory + partition_name
+    filepath = os.path.join(gold_fin_directory, partition_name)
     df.write.mode("overwrite").parquet(filepath)
     # df.toPandas().to_parquet(filepath,
     #           compression='gzip')

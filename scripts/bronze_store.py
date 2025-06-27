@@ -6,7 +6,6 @@ import argparse
 import pyspark
 import utils.data_processing_bronze_table as bronze_etl
 
-
 # Determine the absolute path of this script folder
 SCRIPTS_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -14,10 +13,8 @@ SCRIPTS_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATAMART_ROOT = os.path.join(SCRIPTS_ROOT, "datamart")
 os.makedirs(DATAMART_ROOT, exist_ok=True)          # ensure base folder exists
 
-
 def _log(msg: str) -> None:
     print(f"[bronze_store] {msg}", flush=True)
-
 
 def build_bronze(snapshot_date: str) -> None:
     spark = (
@@ -29,7 +26,6 @@ def build_bronze(snapshot_date: str) -> None:
     spark.sparkContext.setLogLevel("ERROR")
 
     bronze_root = os.path.join(DATAMART_ROOT, "bronze")
-
     paths = {
         "loan":        os.path.join(bronze_root, "lms"),
         "clickstream": os.path.join(bronze_root, "clks"),
@@ -40,24 +36,20 @@ def build_bronze(snapshot_date: str) -> None:
         os.makedirs(p, exist_ok=True)
 
     try:
-        # ---------------- Loan -----------------
         _log(f"START  loan  {snapshot_date}")
         bronze_etl.process_bronze_loan_table(snapshot_date, paths["loan"], spark)
         _log(f"✅  SUCCESS loan  {snapshot_date}")
 
-        # -------------- Clickstream ------------
         _log(f"START  clickstream  {snapshot_date}")
         bronze_etl.process_bronze_clickstream_table(snapshot_date, paths["clickstream"], spark)
         _log(f"✅  SUCCESS clickstream  {snapshot_date}")
 
-        # -------------- Attributes -------------
         _log(f"START  attributes  {snapshot_date}")
         bronze_etl.process_bronze_attributes_table(snapshot_date, paths["attributes"], spark)
         _log(f"✅  SUCCESS attributes  {snapshot_date}")
 
-        # -------------- Financials -------------
         _log(f"START  financials  {snapshot_date}")
-        bronze_etl.process_bronze_financials_table(snapshot_date, paths["financials"], spark)
+        bronze_etl.process_bronze_financials_table( snapshot_date, paths["financials"],  spark)
         _log(f"✅  SUCCESS financials  {snapshot_date}")
 
         _log(f"ALL TABLES COMPLETE  {snapshot_date}")
@@ -67,7 +59,6 @@ def build_bronze(snapshot_date: str) -> None:
         raise
     finally:
         spark.stop()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
