@@ -11,6 +11,7 @@ import subprocess, textwrap
 # Global configuration
 # ------------------------------------------------------------------
 DEFAULT_START_DATE = datetime(2023, 1, 1)
+DEFAULT_END_DATE = datetime(2024, 12, 31)
 SCRIPTS_DIR = "/opt/airflow/scripts"          # where bronze_store.py etc. live
 
 def run_script(script_name: str, snapshot_date: str) -> None:
@@ -28,6 +29,7 @@ default_args = {
     "owner": "airflow",
     "depends_on_past": True,
     "start_date": DEFAULT_START_DATE,
+    "end_date": DEFAULT_END_DATE,
     "email_on_failure": False,
     "retries": 0,
     "retry_delay": timedelta(minutes=5),
@@ -36,7 +38,8 @@ default_args = {
 
 with DAG(
     dag_id="loan_ml_pipeline_minimal",
-    start_date=datetime(2023, 1, 1),     # ← earliest logical date
+    start_date=DEFAULT_START_DATE, 
+    end_date=DEFAULT_END_DATE,     # ← earliest logical date
     schedule_interval="@monthly",
     catchup=True,
     max_active_runs=1,

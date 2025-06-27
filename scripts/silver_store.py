@@ -13,10 +13,8 @@ SCRIPTS_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATAMART_ROOT = os.path.join(SCRIPTS_ROOT, "datamart")
 os.makedirs(DATAMART_ROOT, exist_ok=True)          # ensure base folder exists
 
-
 def _log(msg: str) -> None:
     print(f"[silver_store] {msg}", flush=True)
-
 
 def build_silver(snapshot_date: str) -> None:
     spark = (
@@ -29,7 +27,6 @@ def build_silver(snapshot_date: str) -> None:
 
     bronze_root = os.path.join(DATAMART_ROOT, "bronze")
     silver_root = os.path.join(DATAMART_ROOT, "silver")
-
     paths = {
         "loan":        {"bronze": os.path.join(bronze_root, "lms"),  "silver": os.path.join(silver_root, "lms")},
         "clickstream": {"bronze": os.path.join(bronze_root, "clks"), "silver": os.path.join(silver_root, "clks")},
@@ -40,22 +37,18 @@ def build_silver(snapshot_date: str) -> None:
         os.makedirs(p["silver"], exist_ok=True)
 
     try:
-        # ---------------- Loan -----------------
         _log(f"START  loan  {snapshot_date}")
         silver_etl.process_silver_loan_table(snapshot_date, paths["loan"]["bronze"], paths["loan"]["silver"], spark)
         _log(f"✅  SUCCESS loan  {snapshot_date}")
 
-        # -------------- Clickstream ------------
         _log(f"START  clickstream  {snapshot_date}")
         silver_etl.process_silver_clickstream_table(snapshot_date, paths["clickstream"]["bronze"], paths["clickstream"]["silver"], spark)
         _log(f"✅  SUCCESS clickstream  {snapshot_date}")
 
-        # -------------- Attributes -------------
         _log(f"START  attributes  {snapshot_date}")
         silver_etl.process_silver_attributes_table(snapshot_date, paths["attributes"]["bronze"], paths["attributes"]["silver"], spark)
         _log(f"✅  SUCCESS attributes  {snapshot_date}")
 
-        # -------------- Financials -------------
         _log(f"START  financials  {snapshot_date}")
         silver_etl.process_silver_financials_table(snapshot_date, paths["financials"]["bronze"], paths["financials"]["silver"], spark)
         _log(f"✅  SUCCESS financials  {snapshot_date}")
@@ -67,7 +60,6 @@ def build_silver(snapshot_date: str) -> None:
         raise
     finally:
         spark.stop()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
