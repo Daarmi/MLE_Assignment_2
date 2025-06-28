@@ -1,9 +1,7 @@
-# dags/loan_ml_pipeline.py  (with conditional model_training)
+# dags/loan_ml_pipeline.py  (simplified: direct inference, monitoring, visualization)
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
-from airflow.models import Variable
+from airflow.operators.python import PythonOperator
 import os
 import subprocess
 
@@ -17,46 +15,21 @@ SCRIPTS_DIR        = "/opt/airflow/scripts"
 # -----------------------
 # Helper to run scripts
 # -----------------------
-def run_script(script_name: str, snapshot_date: str) -> None:
-    cmd = ["python", f"{SCRIPTS_DIR}/{script_name}", "--snapshot-date", snapshot_date]
-    # capture both streams so we can print them on error
+def run_script(script_name: str, **kwargs) -> None:
+    cmd = ["python", os.path.join(SCRIPTS_DIR, script_name)]
+    if kwargs.get('snapshot_date'):
+        cmd += ["--snapshot-date", kwargs['snapshot_date']]
+    if kwargs.get('start_date'):
+        cmd += ["--start-date", kwargs['start_date']]
+    if kwargs.get('end_date'):
+        cmd += ["--end-date", kwargs['end_date']]
     result = subprocess.run(
-        cmd,
-        cwd=SCRIPTS_DIR,
-        capture_output=True,
-        text=True
+        cmd, cwd=SCRIPTS_DIR, capture_output=True, text=True
     )
     if result.returncode != 0:
-        print("---- script stdout ----")
-        print(result.stdout)
-        print("---- script stderr ----")
-        print(result.stderr)
-        # re-raise so Airflow still marks the task FAILED
+        print("---- stdout ----", result.stdout)
+        print("---- stderr ----", result.stderr)
         raise subprocess.CalledProcessError(result.returncode, cmd)
-
-# -----------------------
-# Decide whether to train
-# -----------------------
-def _should_train(snapshot_date: str, **kwargs) -> str:
-    # Paths
-    scripts_root  = SCRIPTS_DIR
-    dm_root       = os.path.join(scripts_root, "datamart")
-    label_dir     = os.path.join(dm_root, "gold", "label_store")
-    model_bank    = os.path.join(dm_root, "model_bank")
-
-    # Count months of labels
-    files = [f for f in os.listdir(label_dir) if f.startswith("gold_label_store_")]
-    months_loaded = len(files)
-
-    # Path for this model version
-    model_ts      = snapshot_date.replace('-', '_')
-    model_path    = os.path.join(model_bank, f"model_{model_ts}")
-
-    # Initial train on 12th month
-    if months_loaded == 12 and not os.path.exists(model_path):
-        return "model_training"
-    # Skip otherwise
-    return "skip_model_training"
 
 # ------------------------------------------------------------------
 # DAG definition
@@ -74,10 +47,8 @@ def create_dag():
     }
 
     with DAG(
-        dag_id="loan_ml_pipeline_minimal",
+        dag_id="loan_ml_pipeline",
         default_args=default_args,
-        start_date=DEFAULT_START_DATE,
-        end_date=DEFAULT_END_DATE,
         schedule_interval="@monthly",
         catchup=True,
         max_active_runs=1,
@@ -102,42 +73,46 @@ def create_dag():
             op_kwargs={"script_name": "gold_store.py", "snapshot_date": "{{ ds }}"},
         )
 
+        build_model_gold = PythonOperator(
+            task_id="build_gold_model_table",
+            python_callable=run_script,
+            op_kwargs={"script_name": "gold_model_table.py", "snapshot_date": "{{ ds }}"},
+        )
+
         data_check = PythonOperator(
             task_id="data_check",
             python_callable=run_script,
             op_kwargs={"script_name": "data_check.py", "snapshot_date": "{{ ds }}"},
         )
 
-        # Branch: decide to train or skip
-        decide = BranchPythonOperator(
-            task_id="branch_model_training",
-            python_callable=_should_train,
-            op_kwargs={"snapshot_date": "{{ ds }}"},
-        )
-
-        model_training = PythonOperator(
-            task_id="model_training",
+        model_inference = PythonOperator(
+            task_id="model_inference",
             python_callable=run_script,
-            op_kwargs={"script_name": "model_training.py", "snapshot_date": "{{ ds }}"},
+            op_kwargs={"script_name": "model_inference.py", "snapshot_date": "{{ ds }}"},
         )
 
-        skip_training = DummyOperator(
-            task_id="skip_model_training"
+        model_monitoring = PythonOperator(
+            task_id="model_monitoring",
+            python_callable=run_script,
+            op_kwargs={
+                "script_name": "model_monitoring.py",
+                "start_date": "{{ macros.ds_add(ds, -30) }}",
+                "end_date": "{{ ds }}",
+            },
         )
 
-        # Join after branch
-        join = DummyOperator(
-            task_id="after_model_training",
-            trigger_rule="none_failed_min_one_success"
+        performance_visualization = PythonOperator(
+            task_id="performance_visualization",
+            python_callable=run_script,
+            op_kwargs={"script_name": "performance_visualization.py"},
         )
 
-        # Define dependencies
-        bronze >> silver >> gold >> data_check >> decide
-        decide >> model_training >> join
-        decide >> skip_training  >> join
+        # Define linear dependencies
+        bronze >> silver >> gold >> build_model_gold >> data_check \
+               >> model_inference >> model_monitoring >> performance_visualization
 
         return dag
 
-    # instantiate the DAG
+# instantiate the DAG
 global dag
 dag = create_dag()
